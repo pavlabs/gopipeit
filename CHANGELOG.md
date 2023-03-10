@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0](https://github.com/pavlabs/gopipeit/compare/v0.0.1...v0.1.0) (2023-03-10)
+
+
+### Features
+
+* switch to afero package for fs activities ([a56f63a](https://github.com/pavlabs/gopipeit/commit/a56f63a4dfd6593ab2aadc366902898dae594b36))
+
 ## 0.0.1 (2023-03-10)
 
 
