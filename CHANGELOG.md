@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.0.1 (2023-03-10)
+
+
+### Features
+
+* add gopipeit mvp ([f7b2da7](https://github.com/pavlabs/gopipeit/commit/f7b2da709a535c51d1e796e0568fa64542b7e049))
+
+
+### Documentation
+
+* add readme ([47190d2](https://github.com/pavlabs/gopipeit/commit/47190d26cba14cef214cf7d9dd07deb7d0aced7e))
+
 ## 1.0.0 (2023-03-08)
 
 
