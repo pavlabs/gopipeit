@@ -6,9 +6,10 @@ package cmd
 import (
 	"embed"
 	"fmt"
-	"log"
 	"os"
 	"text/template"
+
+	"github.com/spf13/afero"
 
 	"github.com/artemijspavlovs/gopipeit/helpers"
 	"github.com/spf13/cobra"
@@ -19,6 +20,7 @@ var GoVersion string
 var GitBranch string
 var RegenerateAll bool
 var WithGitHubCI bool
+var AFS = afero.NewOsFs()
 
 //go:embed templates/*
 var embeddedTemplates embed.FS
@@ -30,11 +32,16 @@ var rootCmd = &cobra.Command{
 	Long: `Binary created to provide CI and local development configuration files for Go projects.
 Use it to generate optimal configuration files for GitHub Actions, goreleaser, pre-commit and golangi-lint`,
 	Run: func(cmd *cobra.Command, args []string) {
-		metadata := ExtractMetadataValues()
-
-		err := helpers.CreateDirPath("./.github/workflows/")
+		metadata, err := ExtractMetadataValues()
 		if err != nil {
-			log.Fatal("failed to create directory ./.github/workflows: ", err)
+			fmt.Println(err)
+			return
+		}
+
+		err = AFS.MkdirAll("./.github/workflows/", os.FileMode(0755))
+		if err != nil {
+			fmt.Println("failed to create directory ./.github/workflows: ", err)
+			return
 		}
 
 		tmplts := helpers.NewTemplates()
@@ -44,7 +51,8 @@ Use it to generate optimal configuration files for GitHub Actions, goreleaser, p
 
 		err = GenerateConfigFromTemplates(tmplts.Pairs, metadata)
 		if err != nil {
-			log.Fatal(err)
+			fmt.Println(err)
+			return
 		}
 		fmt.Println("\nThere are some workflows that manage PRs. Please enable 'GitHub Actions to create and" +
 			"approve pull requests' in your GitHub repository under\n" +
@@ -52,11 +60,14 @@ Use it to generate optimal configuration files for GitHub Actions, goreleaser, p
 	},
 }
 
-func ExtractMetadataValues() *helpers.Metadata {
+func ExtractMetadataValues() (*helpers.Metadata, error) {
 	meta := helpers.NewMetadata()
 	if ProjectName == "" {
 		fmt.Println("Project name was not set, extracting from go.mod file")
-		meta.ExtractProjectNameFromGoModFile()
+		err := meta.ExtractProjectNameFromGoModFile(AFS)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract project name from go.mod file: %v", err)
+		}
 		fmt.Println("Project name extracted from go.mod: ", meta.ProjectName)
 	} else {
 		fmt.Printf("Setting project name to %s\n", ProjectName)
@@ -65,7 +76,10 @@ func ExtractMetadataValues() *helpers.Metadata {
 
 	if GoVersion == "" {
 		fmt.Println("Go version was not set, extracting from go.mod file")
-		meta.ExtractGoVersionFromGoModFile()
+		err := meta.ExtractGoVersionFromGoModFile(AFS)
+		if err != nil {
+			return nil, fmt.Errorf("failed to extract go version from go.mod file: %v", err)
+		}
 		fmt.Println("Go version extracted from go.mod: ", meta.GoVersion)
 	} else {
 		fmt.Printf("Setting project name to %s\n", ProjectName)
@@ -82,13 +96,14 @@ func ExtractMetadataValues() *helpers.Metadata {
 		meta.SetGitBranch(GitBranch)
 	}
 
-	return meta
+	return meta, nil
 }
 
 func GenerateConfigFromTemplates(s []helpers.SourceToDest, m *helpers.Metadata) error {
 	var skipped int
+	fs := afero.NewOsFs()
 	for _, pair := range s {
-		exists := helpers.CheckFileExists(pair.ConfigDestination)
+		exists, _ := afero.Exists(fs, pair.ConfigDestination)
 		if exists && !RegenerateAll {
 			fmt.Printf("Config %s already exists, it will not be replaced\n", pair.ConfigDestination)
 			skipped++
@@ -97,7 +112,7 @@ func GenerateConfigFromTemplates(s []helpers.SourceToDest, m *helpers.Metadata) 
 		fmt.Printf("Generating config %s\n", pair.ConfigDestination)
 
 		tmpl := template.Must(template.ParseFS(embeddedTemplates, pair.TemplateSource))
-		f, err := os.Create(pair.ConfigDestination)
+		f, err := fs.Create(pair.ConfigDestination)
 		if err != nil {
 			return err
 		}
